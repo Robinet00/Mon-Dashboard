@@ -15,6 +15,20 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // 1. CONFIGURATION & SCHÉMAS DE DONNÉES
 // ==========================================
 
+function hashString(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash;
+    }
+    return hash.toString();
+}
+
+function generateId() {
+    return Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+}
+
 const DEFAULT_HASH = hashString("admin123"); 
 
 const coreSchemas = {
@@ -106,7 +120,7 @@ const coreSchemas = {
 // 2. GESTION DES DONNÉES (SUPABASE & BACKUP LOCAL)
 // ==========================================
 
-let appState = {
+window.appState = window.appState || {
     isAuthenticated: false,
     currentView: 'dashboard',
     settings: {
@@ -116,20 +130,6 @@ let appState = {
     customLists: [],
     data: {}
 };
-
-function hashString(str) {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-        const char = str.charCodeAt(i);
-        hash = ((hash << 5) - hash) + char;
-        hash = hash & hash;
-    }
-    return hash.toString();
-}
-
-function generateId() {
-    return Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
-}
 
 async function loadData() {
     try {
@@ -147,7 +147,6 @@ async function loadData() {
             appState.customLists = data.content.customLists || [];
             appState.data = data.content.data || {};
             
-            // Sync locale de sauvegarde
             localStorage.setItem('personalDashboardData', JSON.stringify(data.content));
         } else {
             loadDataFromLocalStorage();
@@ -188,10 +187,8 @@ async function saveData() {
         data: appState.data
     };
 
-    // Sauvegarde en local
     localStorage.setItem('personalDashboardData', JSON.stringify(dataToSave));
 
-    // Sauvegarde à distance
     try {
         const { error } = await supabaseClient
             .from('dashboard_data')
@@ -596,9 +593,6 @@ function renderSettings(container) {
                 <input type="password" id="new-password" placeholder="Laissez vide pour ne pas changer">
             </div>
             <button class="btn-primary" onclick="changePassword()">Mettre à jour le mot de passe</button>
-            <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 1rem;">
-                ⚠️ Note : La sécurité est basée sur JavaScript côté client. Protège contre un accès rapide, mais pas contre une analyse technique.
-            </p>
         </div>
 
         <div class="card" style="margin-bottom: 2rem;">
