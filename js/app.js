@@ -1,8 +1,3 @@
-/**
- * APP.JS - Moteur du Dashboard Personnel Privé (Version Supabase)
- * Architecture centralisée pour compatibilité maximale GitHub Pages
- */
-
 // ==========================================
 // 0. INITIALISATION SUPABASE
 // ==========================================
@@ -730,7 +725,7 @@ function renderCustomListsManager() {
     appState.customLists.forEach(l => {
         html += `<li style="display:flex; justify-content:space-between; padding:0.5rem; border-bottom:1px solid var(--border);">
             <span>${l.title}</span>
-            <button class="icon-btn" style="color:var(--danger);" onclick="deleteCustomList('${l.id}')">🗑️</button>
+            <button class="icon-btn" style="color:var(--danger);" onclick="deleteCustomList('${l.id}')">🗑️️</button>
         </li>`;
     });
     html += '</ul>';
