@@ -7,7 +7,7 @@
 // 0. INITIALISATION SUPABASE
 // ==========================================
 const SUPABASE_URL = "https://nktxgfupohbntiaujhkz.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rdHhnZnVwb2hibnRpYXVqaGt6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTExMjEwMDMsImV4cCI6MjEwNjY5NzAwM30.qkfj24D_i0CJeESsEx3MRW7c_claibcaQop6we0lrPQ"; // sb_publishable_...
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rdHhnZnVwb2hibnRpYXVqaGt6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTExMjEwMDMsImV4cCI6MjEwNjY5NzAwM30.qkfj24D_i0CJeESsEx3MRW7c_claibcaQop6we0lrPQ";
 
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -103,7 +103,7 @@ const coreSchemas = {
 };
 
 // ==========================================
-// 2. GESTION DES DONNÉES (LOCALSTORAGE & SYNC)
+// 2. GESTION DES DONNÉES (SUPABASE & BACKUP LOCAL)
 // ==========================================
 
 let appState = {
@@ -131,18 +131,30 @@ function generateId() {
     return Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
 }
 
-function loadData() {
-    const saved = localStorage.getItem('personalDashboardData');
-    if (saved) {
-        try {
-            const parsed = JSON.parse(saved);
-            appState.settings = parsed.settings || appState.settings;
-            appState.customLists = parsed.customLists || [];
-            appState.data = parsed.data || {};
-        } catch (e) {
-            console.error("Erreur de lecture des données", e);
-            showToast("Erreur lors du chargement des données", "error");
+async function loadData() {
+    try {
+        const { data, error } = await supabaseClient
+            .from('dashboard_data')
+            .select('content')
+            .eq('id', 'main_config')
+            .single();
+
+        if (error && error.code !== 'PGRST116') {
+            console.warn("Erreur Supabase, repli sur localStorage:", error);
+            loadDataFromLocalStorage();
+        } else if (data && data.content) {
+            appState.settings = data.content.settings || appState.settings;
+            appState.customLists = data.content.customLists || [];
+            appState.data = data.content.data || {};
+            
+            // Sync locale de sauvegarde
+            localStorage.setItem('personalDashboardData', JSON.stringify(data.content));
+        } else {
+            loadDataFromLocalStorage();
         }
+    } catch (e) {
+        console.error("Erreur de connexion Supabase:", e);
+        loadDataFromLocalStorage();
     }
     
     const allSchemas = { ...coreSchemas, ...getCustomSchemas() };
@@ -151,15 +163,51 @@ function loadData() {
     }
     
     applyTheme(appState.settings.theme);
+    buildSidebar();
+    renderCurrentView();
 }
 
-function saveData() {
+function loadDataFromLocalStorage() {
+    const saved = localStorage.getItem('personalDashboardData');
+    if (saved) {
+        try {
+            const parsed = JSON.parse(saved);
+            appState.settings = parsed.settings || appState.settings;
+            appState.customLists = parsed.customLists || [];
+            appState.data = parsed.data || {};
+        } catch (e) {
+            console.error("Erreur lecture localStorage", e);
+        }
+    }
+}
+
+async function saveData() {
     const dataToSave = {
         settings: appState.settings,
         customLists: appState.customLists,
         data: appState.data
     };
+
+    // Sauvegarde en local
     localStorage.setItem('personalDashboardData', JSON.stringify(dataToSave));
+
+    // Sauvegarde à distance
+    try {
+        const { error } = await supabaseClient
+            .from('dashboard_data')
+            .upsert({ 
+                id: 'main_config', 
+                content: dataToSave,
+                updated_at: new Date().toISOString()
+            });
+
+        if (error) {
+            console.error("Erreur de sauvegarde Supabase:", error);
+            showToast("Erreur de synchro cloud (sauvegardé en local)", "error");
+        }
+    } catch (e) {
+        console.error("Erreur de connexion lors de la sauvegarde Supabase:", e);
+    }
 }
 
 function getCustomSchemas() {
@@ -178,10 +226,8 @@ function getCustomSchemas() {
 // 3. INTERFACE UTILISATEUR
 // ==========================================
 
-function initApp() {
-    loadData();
-    buildSidebar();
-    
+async function initApp() {
+    await loadData();
     window.addEventListener('hashchange', handleRoute);
     
     if (sessionStorage.getItem('dashboardAuth') === 'true') {
@@ -203,6 +249,8 @@ function handleRoute() {
 
 function buildSidebar() {
     const nav = document.getElementById('main-nav');
+    if (!nav) return;
+
     nav.innerHTML = `<li><a href="#dashboard" class="nav-item">🏠 Accueil</a></li>`;
     
     for (let key in coreSchemas) {
@@ -220,6 +268,8 @@ function buildSidebar() {
 function renderCurrentView() {
     const content = document.getElementById('content-area');
     const toolbarActions = document.getElementById('toolbar-actions');
+    if (!content || !toolbarActions) return;
+
     const view = appState.currentView;
     
     content.innerHTML = '';
@@ -230,7 +280,7 @@ function renderCurrentView() {
         renderDashboard(content);
     } 
     else if (view === 'settings') {
-        document.getElementById('page-title').textContent = "⚙️ Paramètres";
+        document.getElementById('page-title').textContent = "⚙️️ Paramètres";
         renderSettings(content);
     }
     else {
@@ -459,67 +509,77 @@ function openModal(schemaKey, itemId = null) {
     document.getElementById('modal-overlay').classList.remove('hidden');
 }
 
-document.getElementById('dynamic-form').addEventListener('submit', function(e) {
-    e.preventDefault();
-    const formData = new FormData(this);
-    const newItem = { id: currentEditContext.itemId || generateId() };
-    
-    if(currentEditContext.itemId) {
-        const existing = appState.data[currentEditContext.schemaKey].find(i => i.id === currentEditContext.itemId);
-        Object.assign(newItem, existing);
-    }
+const dynamicForm = document.getElementById('dynamic-form');
+if (dynamicForm) {
+    dynamicForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const formData = new FormData(this);
+        const newItem = { id: currentEditContext.itemId || generateId() };
+        
+        if(currentEditContext.itemId) {
+            const existing = appState.data[currentEditContext.schemaKey].find(i => i.id === currentEditContext.itemId);
+            Object.assign(newItem, existing);
+        }
 
-    for (let [key, value] of formData.entries()) {
-        newItem[key] = value;
-    }
-    
-    const arr = appState.data[currentEditContext.schemaKey];
-    if (currentEditContext.itemId) {
-        const index = arr.findIndex(i => i.id === currentEditContext.itemId);
-        arr[index] = newItem;
-        showToast("Modification enregistrée", "success");
-    } else {
-        arr.push(newItem);
-        showToast("Élément ajouté", "success");
-    }
-    
-    saveData();
-    closeModal();
-    renderCurrentView();
-});
+        for (let [key, value] of formData.entries()) {
+            newItem[key] = value;
+        }
+        
+        const arr = appState.data[currentEditContext.schemaKey];
+        if (currentEditContext.itemId) {
+            const index = arr.findIndex(i => i.id === currentEditContext.itemId);
+            arr[index] = newItem;
+            showToast("Modification enregistrée", "success");
+        } else {
+            arr.push(newItem);
+            showToast("Élément ajouté", "success");
+        }
+        
+        await saveData();
+        closeModal();
+        renderCurrentView();
+    });
+}
 
-function deleteItem(schemaKey, itemId) {
+async function deleteItem(schemaKey, itemId) {
     if (confirm("Voulez-vous vraiment supprimer cet élément ?")) {
         appState.data[schemaKey] = appState.data[schemaKey].filter(i => i.id !== itemId);
-        saveData();
+        await saveData();
         showToast("Élément supprimé", "success");
         renderCurrentView();
     }
 }
 
-function toggleCheck(schemaKey, itemId, prop) {
+async function toggleCheck(schemaKey, itemId, prop) {
     const item = appState.data[schemaKey].find(i => i.id === itemId);
     if(item) {
         item[prop] = !item[prop];
-        saveData();
+        await saveData();
         renderCurrentView();
     }
 }
-function toggleTaskDone(itemId) {
+
+async function toggleTaskDone(itemId) {
     const item = appState.data['taches'].find(i => i.id === itemId);
     if(item) {
         item.statut = item.statut === 'Terminé' ? 'À faire' : 'Terminé';
-        saveData();
+        await saveData();
         renderCurrentView();
     }
 }
 
 function closeModal() {
-    document.getElementById('modal-overlay').classList.add('hidden');
-    document.getElementById('dynamic-form').reset();
+    const overlay = document.getElementById('modal-overlay');
+    const form = document.getElementById('dynamic-form');
+    if (overlay) overlay.classList.add('hidden');
+    if (form) form.reset();
 }
-document.getElementById('close-modal-btn').addEventListener('click', closeModal);
-document.getElementById('modal-cancel-btn').addEventListener('click', closeModal);
+
+const closeBtn = document.getElementById('close-modal-btn');
+if (closeBtn) closeBtn.addEventListener('click', closeModal);
+
+const cancelBtn = document.getElementById('modal-cancel-btn');
+if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
 
 // ==========================================
 // 6. PARAMÈTRES, EXPORT, IMPORT ET THÈME
@@ -576,17 +636,17 @@ function applyTheme(theme) {
     document.body.setAttribute('data-theme', theme);
 }
 
-function changeTheme(theme) {
+async function changeTheme(theme) {
     appState.settings.theme = theme;
     applyTheme(theme);
-    saveData();
+    await saveData();
 }
 
-function changePassword() {
+async function changePassword() {
     const input = document.getElementById('new-password').value;
     if (input) {
         appState.settings.passwordHash = hashString(input);
-        saveData();
+        await saveData();
         showToast("Mot de passe mis à jour", "success");
         document.getElementById('new-password').value = '';
     }
@@ -607,7 +667,7 @@ function importData(event) {
     const file = event.target.files[0];
     if (file) {
         const reader = new FileReader();
-        reader.onload = function(e) {
+        reader.onload = async function(e) {
             try {
                 const imported = JSON.parse(e.target.result);
                 if(imported.data) {
@@ -615,7 +675,7 @@ function importData(event) {
                         appState.settings = imported.settings || appState.settings;
                         appState.customLists = imported.customLists || [];
                         appState.data = imported.data;
-                        saveData();
+                        await saveData();
                         showToast("Données importées avec succès", "success");
                         setTimeout(() => window.location.reload(), 1000);
                     }
@@ -628,16 +688,19 @@ function importData(event) {
     }
 }
 
-function wipeData() {
+async function wipeData() {
     if(confirm("DANGER : Voulez-vous vraiment supprimer toutes vos données ? Cette action est irréversible.")) {
         if(confirm("Êtes-vous ABSOLUMENT certain ?")) {
             localStorage.removeItem('personalDashboardData');
+            appState.data = {};
+            appState.customLists = [];
+            await saveData();
             window.location.reload();
         }
     }
 }
 
-function promptCreateCustomList() {
+async function promptCreateCustomList() {
     const name = prompt("Nom de la liste (ex: 🎬 Films à voir) :");
     if (!name) return;
     const listId = "list_" + generateId();
@@ -654,17 +717,17 @@ function promptCreateCustomList() {
     };
     appState.customLists.push(newList);
     appState.data[listId] = [];
-    saveData();
+    await saveData();
     buildSidebar();
     renderSettings(document.getElementById('content-area'));
     showToast("Liste créée !", "success");
 }
 
-function deleteCustomList(listId) {
+async function deleteCustomList(listId) {
     if(confirm("Supprimer cette liste personnalisée ET toutes les données qu'elle contient ?")) {
         appState.customLists = appState.customLists.filter(l => l.id !== listId);
         delete appState.data[listId];
-        saveData();
+        await saveData();
         buildSidebar();
         renderSettings(document.getElementById('content-area'));
     }
@@ -672,6 +735,8 @@ function deleteCustomList(listId) {
 
 function renderCustomListsManager() {
     const container = document.getElementById('custom-lists-manager');
+    if (!container) return;
+    
     if(appState.customLists.length === 0) {
         container.innerHTML = `<p style="color:var(--text-muted);">Aucune liste personnalisée.</p>`;
         return;
@@ -694,41 +759,49 @@ function renderCustomListsManager() {
 const lockScreen = document.getElementById('lock-screen');
 const appScreen = document.getElementById('app-screen');
 
-document.getElementById('login-form').addEventListener('submit', function(e) {
-    e.preventDefault();
-    const pass = document.getElementById('password-input').value;
-    const errorEl = document.getElementById('login-error');
-    
-    const targetHash = appState.settings.passwordHash || DEFAULT_HASH;
+const loginForm = document.getElementById('login-form');
+if (loginForm) {
+    loginForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const pass = document.getElementById('password-input').value;
+        const errorEl = document.getElementById('login-error');
+        
+        const targetHash = appState.settings.passwordHash || DEFAULT_HASH;
 
-    if (hashString(pass) === targetHash || pass === 'debug123') {
-        unlockApp();
-        errorEl.classList.add('hidden');
-    } else {
-        errorEl.classList.remove('hidden');
-        document.getElementById('password-input').value = '';
-    }
-});
+        if (hashString(pass) === targetHash) {
+            unlockApp();
+            errorEl.classList.add('hidden');
+        } else {
+            errorEl.classList.remove('hidden');
+            document.getElementById('password-input').value = '';
+        }
+    });
+}
 
 function unlockApp() {
     appState.isAuthenticated = true;
     sessionStorage.setItem('dashboardAuth', 'true');
-    lockScreen.classList.add('hidden');
-    appScreen.classList.remove('hidden');
+    if (lockScreen) lockScreen.classList.add('hidden');
+    if (appScreen) appScreen.classList.remove('hidden');
     handleRoute();
 }
 
-document.getElementById('lock-btn').addEventListener('click', function(e) {
-    e.preventDefault();
-    appState.isAuthenticated = false;
-    sessionStorage.removeItem('dashboardAuth');
-    document.getElementById('password-input').value = '';
-    lockScreen.classList.remove('hidden');
-    appScreen.classList.add('hidden');
-});
+const lockBtn = document.getElementById('lock-btn');
+if (lockBtn) {
+    lockBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        appState.isAuthenticated = false;
+        sessionStorage.removeItem('dashboardAuth');
+        document.getElementById('password-input').value = '';
+        if (lockScreen) lockScreen.classList.remove('hidden');
+        if (appScreen) appScreen.classList.add('hidden');
+    });
+}
 
 function showToast(message, type = 'success') {
     const container = document.getElementById('toast-container');
+    if (!container) return;
+
     const toast = document.createElement('div');
     toast.className = 'toast';
     toast.style.background = type === 'success' ? 'var(--success)' : 'var(--danger)';
@@ -738,16 +811,26 @@ function showToast(message, type = 'success') {
 }
 
 // Menu Mobile
-document.getElementById('hamburger-btn').addEventListener('click', () => {
-    document.getElementById('sidebar').classList.add('open');
-    document.getElementById('sidebar-overlay').classList.add('active');
-});
-function closeMobileMenu() {
-    document.getElementById('sidebar').classList.remove('open');
-    document.getElementById('sidebar-overlay').classList.remove('active');
+const hamburgerBtn = document.getElementById('hamburger-btn');
+if (hamburgerBtn) {
+    hamburgerBtn.addEventListener('click', () => {
+        document.getElementById('sidebar').classList.add('open');
+        document.getElementById('sidebar-overlay').classList.add('active');
+    });
 }
-document.getElementById('close-sidebar-btn').addEventListener('click', closeMobileMenu);
-document.getElementById('sidebar-overlay').addEventListener('click', closeMobileMenu);
+
+function closeMobileMenu() {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    if (sidebar) sidebar.classList.remove('open');
+    if (overlay) overlay.classList.remove('active');
+}
+
+const closeSidebarBtn = document.getElementById('close-sidebar-btn');
+if (closeSidebarBtn) closeSidebarBtn.addEventListener('click', closeMobileMenu);
+
+const sidebarOverlay = document.getElementById('sidebar-overlay');
+if (sidebarOverlay) sidebarOverlay.addEventListener('click', closeMobileMenu);
 
 // DÉMARRAGE
 window.addEventListener('DOMContentLoaded', initApp);
