@@ -1,17 +1,22 @@
 /**
- * APP.JS - Moteur du Dashboard Personnel Privé
+ * APP.JS - Moteur du Dashboard Personnel Privé (Version Supabase)
  * Architecture centralisée pour compatibilité maximale GitHub Pages
  */
+
+// ==========================================
+// 0. INITIALISATION SUPABASE
+// ==========================================
+const SUPABASE_URL = "https://nktxgfupohbntiaujhkz.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_kJp-C1mIJ9RJA4LKO1o6vA_hRdK-XSY"; // sb_publishable_...
+
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ==========================================
 // 1. CONFIGURATION & SCHÉMAS DE DONNÉES
 // ==========================================
 
-// Mot de passe par défaut très basique (haché localement). 
-// L'utilisateur pourra le changer dans les paramètres.
 const DEFAULT_HASH = hashString("admin123"); 
 
-// Schémas des sections fixes de l'application
 const coreSchemas = {
     courses: {
         title: "🛒 Courses",
@@ -98,7 +103,7 @@ const coreSchemas = {
 };
 
 // ==========================================
-// 2. GESTION DES DONNÉES (LOCALSTORAGE)
+// 2. GESTION DES DONNÉES (LOCALSTORAGE & SYNC)
 // ==========================================
 
 let appState = {
@@ -108,11 +113,10 @@ let appState = {
         theme: 'light',
         passwordHash: DEFAULT_HASH
     },
-    customLists: [], // Ex: [{id: 'films', title: '🎬 Films', fields: [...]}]
-    data: {} // Contient toutes les entrées { courses: [...], taches: [...] }
+    customLists: [],
+    data: {}
 };
 
-// Fonction de hachage simple (non sécurisée pour serveurs, mais ok pour local UI)
 function hashString(str) {
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
@@ -123,12 +127,10 @@ function hashString(str) {
     return hash.toString();
 }
 
-// Générateur d'ID unique
 function generateId() {
     return Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
 }
 
-// Initialisation et chargement des données
 function loadData() {
     const saved = localStorage.getItem('personalDashboardData');
     if (saved) {
@@ -143,7 +145,6 @@ function loadData() {
         }
     }
     
-    // Initialiser les tableaux vides pour chaque schéma s'ils n'existent pas
     const allSchemas = { ...coreSchemas, ...getCustomSchemas() };
     for (let key in allSchemas) {
         if (!appState.data[key]) appState.data[key] = [];
@@ -152,7 +153,6 @@ function loadData() {
     applyTheme(appState.settings.theme);
 }
 
-// Sauvegarde automatique globale
 function saveData() {
     const dataToSave = {
         settings: appState.settings,
@@ -175,17 +175,15 @@ function getCustomSchemas() {
 }
 
 // ==========================================
-// 3. INTERFACE UTILISATEUR (ROUTAGE & RENDU)
+// 3. INTERFACE UTILISATEUR
 // ==========================================
 
 function initApp() {
     loadData();
     buildSidebar();
     
-    // Gestion du hash dans l'URL pour la navigation
     window.addEventListener('hashchange', handleRoute);
     
-    // Si déjà authentifié en session
     if (sessionStorage.getItem('dashboardAuth') === 'true') {
         unlockApp();
     }
@@ -195,7 +193,6 @@ function handleRoute() {
     let hash = window.location.hash.substring(1) || 'dashboard';
     appState.currentView = hash;
     
-    // Mise à jour visuelle du menu
     document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
     const activeLink = document.querySelector(`.nav-item[href="#${hash}"]`);
     if(activeLink) activeLink.classList.add('active');
@@ -208,12 +205,10 @@ function buildSidebar() {
     const nav = document.getElementById('main-nav');
     nav.innerHTML = `<li><a href="#dashboard" class="nav-item">🏠 Accueil</a></li>`;
     
-    // Menus fixes
     for (let key in coreSchemas) {
         nav.innerHTML += `<li><a href="#${key}" class="nav-item">${coreSchemas[key].title}</a></li>`;
     }
     
-    // Menus personnalisés
     if (appState.customLists.length > 0) {
         nav.innerHTML += `<li style="padding: 1rem 1.5rem 0.5rem; font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase;">Listes perso</li>`;
         appState.customLists.forEach(list => {
@@ -244,10 +239,8 @@ function renderCurrentView() {
         
         if (schema) {
             document.getElementById('page-title').textContent = schema.title;
-            // Bouton Ajouter
             toolbarActions.innerHTML = `<button class="btn-primary" onclick="openModal('${view}')">+ Ajouter</button>`;
             
-            // Affichage spécifique (Liste ou Cartes)
             if (view === 'budget') renderBudgetSummary(content);
             
             renderDataView(view, schema, content);
@@ -257,7 +250,6 @@ function renderCurrentView() {
     }
 }
 
-// Moteur de rendu générique (Liste ou Grille de cartes)
 function renderDataView(schemaKey, schema, container) {
     const data = appState.data[schemaKey] || [];
     
@@ -272,7 +264,6 @@ function renderDataView(schemaKey, schema, container) {
         html += `<div class="list-container">`;
         data.forEach(item => {
             const isDone = item.achete || item.statut === 'Terminé' || item.statut === 'Acheté';
-            // Le titre principal est le premier champ texte requis
             const mainField = schema.fields[0].name;
             const title = item[mainField] || "Sans titre";
             
@@ -296,7 +287,6 @@ function renderDataView(schemaKey, schema, container) {
         });
         html += `</div>`;
     } else {
-        // Vue en Cartes (Wishlist, Projets, Notes...)
         html += `<div class="grid-cards">`;
         data.forEach(item => {
             const mainField = schema.fields[0].name;
@@ -323,7 +313,6 @@ function renderDataView(schemaKey, schema, container) {
     container.innerHTML += html;
 }
 
-// Utilitaires de formatage dynamique
 function formatSubInfo(key, item) {
     if (key === 'courses') return `${item.quantite || 1}x ${item.categorie || ''} ${item.prix ? '- '+item.prix+'€' : ''}`;
     if (key === 'budget') return `${item.date} | ${item.categorie} | <strong style="color: ${item.type==='Revenu'?'var(--success)':'var(--text-main)'}">${item.montant}€</strong>`;
@@ -334,7 +323,7 @@ function formatSubInfo(key, item) {
 function formatCardContent(schema, item) {
     let html = '';
     schema.fields.forEach(f => {
-        if (f.name === schema.fields[0].name || !item[f.name]) return; // Skip title and empty
+        if (f.name === schema.fields[0].name || !item[f.name]) return;
         if (f.type === 'url') html += `<div><a href="${item[f.name]}" target="_blank" style="color: var(--primary);">🔗 Lien web</a></div>`;
         else if (f.type === 'textarea') html += `<div style="margin-top:0.5rem; white-space: pre-wrap;">${item[f.name]}</div>`;
         else if (f.name === 'prix' || f.name === 'budget' || f.name === 'montant') html += `<div><strong>${f.label}:</strong> ${item[f.name]} €</div>`;
@@ -350,7 +339,6 @@ function formatCardContent(schema, item) {
 function renderDashboard(container) {
     const data = appState.data;
     
-    // Statistiques rapides
     const coursesCount = (data.courses || []).filter(i => !i.achete).length;
     const tachesCount = (data.taches || []).filter(i => i.statut !== 'Terminé').length;
     const projetsCount = (data.projets || []).filter(i => i.statut === 'En cours').length;
@@ -375,7 +363,6 @@ function renderDashboard(container) {
         <div class="grid-cards">
     `;
 
-    // Récupérer les éléments prioritaires de toutes les sections
     let urgents = [];
     if(data.taches) urgents.push(...data.taches.filter(t => (t.priorite === 'Haute' || t.priorite === 'Urgente') && t.statut !== 'Terminé').map(t => ({...t, _source: 'Tâche'})));
     if(data.wishlist) urgents.push(...data.wishlist.filter(w => w.priorite === 'Haute').map(w => ({...w, _source: 'Wishlist'})));
@@ -396,7 +383,6 @@ function renderDashboard(container) {
     container.innerHTML = html;
 }
 
-// Résumé Budget spécifique
 function renderBudgetSummary(container) {
     const ops = appState.data.budget || [];
     let revenus = 0;
@@ -478,7 +464,6 @@ document.getElementById('dynamic-form').addEventListener('submit', function(e) {
     const formData = new FormData(this);
     const newItem = { id: currentEditContext.itemId || generateId() };
     
-    // Garder les propriétés existantes non présentes dans le formulaire (ex: achete boolean)
     if(currentEditContext.itemId) {
         const existing = appState.data[currentEditContext.schemaKey].find(i => i.id === currentEditContext.itemId);
         Object.assign(newItem, existing);
@@ -652,13 +637,11 @@ function wipeData() {
     }
 }
 
-// -- Gestion simplifiée des listes personnalisées --
 function promptCreateCustomList() {
     const name = prompt("Nom de la liste (ex: 🎬 Films à voir) :");
     if (!name) return;
     const listId = "list_" + generateId();
     
-    // Structure de base d'une liste perso
     const newList = {
         id: listId,
         title: name,
@@ -670,7 +653,7 @@ function promptCreateCustomList() {
         ]
     };
     appState.customLists.push(newList);
-    appState.data[listId] = []; // initialiser la liste de données
+    appState.data[listId] = [];
     saveData();
     buildSidebar();
     renderSettings(document.getElementById('content-area'));
@@ -716,11 +699,9 @@ document.getElementById('login-form').addEventListener('submit', function(e) {
     const pass = document.getElementById('password-input').value;
     const errorEl = document.getElementById('login-error');
     
-    // Vérifier mot de passe (si c'est le 1er lancement, default_hash correspond à "admin123" ou "admin")
-    // Note : si appState.settings.passwordHash n'existe pas, initialiser
     const targetHash = appState.settings.passwordHash || DEFAULT_HASH;
 
-    if (hashString(pass) === targetHash || pass === 'debug123') { // debug fallback
+    if (hashString(pass) === targetHash || pass === 'debug123') {
         unlockApp();
         errorEl.classList.add('hidden');
     } else {
@@ -731,7 +712,7 @@ document.getElementById('login-form').addEventListener('submit', function(e) {
 
 function unlockApp() {
     appState.isAuthenticated = true;
-    sessionStorage.setItem('dashboardAuth', 'true'); // Garder actif le temps de l'onglet
+    sessionStorage.setItem('dashboardAuth', 'true');
     lockScreen.classList.add('hidden');
     appScreen.classList.remove('hidden');
     handleRoute();
