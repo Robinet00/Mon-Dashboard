@@ -16,12 +16,13 @@
         <div class="lock-container">
             <div class="lock-icon">🔒</div>
             <h1>Espace Privé</h1>
-            <p>Veuillez entrer votre mot de passe</p>
+            <p>Veuillez vous connecter</p>
             <form id="login-form">
-                <input type="password" id="password-input" placeholder="Mot de passe..." required autofocus>
-                <button type="submit">Déverrouiller</button>
+                <input type="email" id="email-input" placeholder="Adresse e-mail..." required autofocus style="margin-bottom: 0.8rem;">
+                <input type="password" id="password-input" placeholder="Mot de passe..." required>
+                <button type="submit" style="margin-top: 1rem;">Se connecter</button>
             </form>
-            <p id="login-error" class="error-text hidden">Mot de passe incorrect</p>
+            <p id="login-error" class="error-text hidden">Identifiants incorrects</p>
         </div>
     </div>
 
@@ -49,7 +50,7 @@
             <div class="sidebar-footer">
                 <ul class="nav-links">
                     <li><a href="#settings" class="nav-item">⚙️ Paramètres</a></li>
-                    <li><a href="#" id="lock-btn" class="nav-item lock-btn">🔒 Verrouiller</a></li>
+                    <li><a href="#" id="lock-btn" class="nav-item lock-btn">🔒 Déconnexion</a></li>
                 </ul>
             </div>
         </nav>
