@@ -280,7 +280,7 @@ function renderCurrentView() {
         renderDashboard(content);
     } 
     else if (view === 'settings') {
-        document.getElementById('page-title').textContent = "⚙️️ Paramètres";
+        document.getElementById('page-title').textContent = "⚙ Paramètres";
         renderSettings(content);
     }
     else {
