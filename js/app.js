@@ -1,10 +1,16 @@
+/**
+ * APP.JS - Moteur du Dashboard Personnel Privé
+ * Version sécurisée avec attente du chargement de Supabase
+ */
+
 // ==========================================
 // 0. INITIALISATION SUPABASE
 // ==========================================
 const SUPABASE_URL = "https://nktxgfupohbntiaujhkz.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rdHhnZnVwb2hibnRpYXVqaGt6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTExMjEwMDMsImV4cCI6MjEwNjY5NzAwM30.qkfj24D_i0CJeESsEx3MRW7c_claibcaQop6we0lrPQ";
 
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Déclaration sans initialisation immédiate pour éviter l'erreur de chargement
+let supabaseClient = null;
 
 // ==========================================
 // 1. CONFIGURATION & SCHÉMAS DE DONNÉES
@@ -127,6 +133,8 @@ window.appState = window.appState || {
 };
 
 async function loadData() {
+    if (!supabaseClient) return loadDataFromLocalStorage();
+
     try {
         const { data, error } = await supabaseClient
             .from('dashboard_data')
@@ -183,6 +191,8 @@ async function saveData() {
     };
 
     localStorage.setItem('personalDashboardData', JSON.stringify(dataToSave));
+
+    if (!supabaseClient) return;
 
     try {
         const { error } = await supabaseClient
@@ -725,7 +735,7 @@ function renderCustomListsManager() {
     appState.customLists.forEach(l => {
         html += `<li style="display:flex; justify-content:space-between; padding:0.5rem; border-bottom:1px solid var(--border);">
             <span>${l.title}</span>
-            <button class="icon-btn" style="color:var(--danger);" onclick="deleteCustomList('${l.id}')">🗑️️</button>
+            <button class="icon-btn" style="color:var(--danger);" onclick="deleteCustomList('${l.id}')">🗑</button>
         </li>`;
     });
     html += '</ul>';
@@ -744,6 +754,12 @@ const loginForm = document.getElementById('login-form');
 if (loginForm) {
     loginForm.addEventListener('submit', async function(e) {
         e.preventDefault();
+        
+        if (!supabaseClient) {
+            showToast("Connexion au serveur en cours, réessayez...", "error");
+            return;
+        }
+
         const email = document.getElementById('email-input').value;
         const password = document.getElementById('password-input').value;
         const errorEl = document.getElementById('login-error');
@@ -763,8 +779,22 @@ if (loginForm) {
     });
 }
 
-// Vérification de la session au démarrage
+// Vérification de la session au démarrage (AVEC SÉCURITÉ DE CHARGEMENT)
 async function initApp() {
+    // 1. Vérifie si le script externe Supabase est bien chargé par le navigateur
+    if (typeof supabase === 'undefined') {
+        console.error("En attente de Supabase...");
+        // Re-tente l'initialisation dans 100ms
+        setTimeout(initApp, 100);
+        return; 
+    }
+
+    // 2. Initialise le client Supabase en toute sécurité
+    if (!supabaseClient) {
+        supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    }
+
+    // 3. Poursuit le démarrage de l'app
     const { data: { session } } = await supabaseClient.auth.getSession();
     
     if (session) {
@@ -790,7 +820,7 @@ const lockBtn = document.getElementById('lock-btn');
 if (lockBtn) {
     lockBtn.addEventListener('click', async function(e) {
         e.preventDefault();
-        await supabaseClient.auth.signOut();
+        if (supabaseClient) await supabaseClient.auth.signOut();
         appState.isAuthenticated = false;
         const passwordInput = document.getElementById('password-input');
         if (passwordInput) passwordInput.value = '';
