@@ -753,32 +753,66 @@ function renderCustomListsManager() {
 }
 
 // ==========================================
-// 7. AUTHENTIFICATION ET UTILITAIRES
+// 7. AUTHENTIFICATION SUPABASE & UTILITAIRES
 // ==========================================
 
 const lockScreen = document.getElementById('lock-screen');
 const appScreen = document.getElementById('app-screen');
 
+// Connexion via Supabase Auth
 const loginForm = document.getElementById('login-form');
 if (loginForm) {
-    loginForm.addEventListener('submit', function(e) {
+    loginForm.addEventListener('submit', async function(e) {
         e.preventDefault();
-        const pass = document.getElementById('password-input').value;
+        const email = document.getElementById('email-input').value;
+        const password = document.getElementById('password-input').value;
         const errorEl = document.getElementById('login-error');
-        
-        // Récupère le hash enregistré ou recalcule proprement celui de admin123
-        const targetHash = (appState.settings && appState.settings.passwordHash) 
-            ? appState.settings.passwordHash 
-            : hashString("admin123");
 
-        // Accepte 'admin123' en secours OU le hash correspondant
-        if (pass === "admin123" || hashString(pass) === targetHash) {
-            unlockApp();
-            errorEl.classList.add('hidden');
-        } else {
+        const { data, error } = await supabaseClient.auth.signInWithPassword({
+            email: email,
+            password: password
+        });
+
+        if (error) {
+            errorEl.textContent = "Identifiants incorrects";
             errorEl.classList.remove('hidden');
-            document.getElementById('password-input').value = '';
+        } else {
+            errorEl.classList.add('hidden');
+            unlockApp();
         }
+    });
+}
+
+// Vérification de la session au démarrage
+async function initApp() {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    
+    if (session) {
+        unlockApp();
+    } else {
+        if (lockScreen) lockScreen.classList.remove('hidden');
+        if (appScreen) appScreen.classList.add('hidden');
+    }
+
+    window.addEventListener('hashchange', handleRoute);
+}
+
+function unlockApp() {
+    appState.isAuthenticated = true;
+    if (lockScreen) lockScreen.classList.add('hidden');
+    if (appScreen) appScreen.classList.remove('hidden');
+    loadData();
+}
+
+// Déconnexion Supabase
+const lockBtn = document.getElementById('lock-btn');
+if (lockBtn) {
+    lockBtn.addEventListener('click', async function(e) {
+        e.preventDefault();
+        await supabaseClient.auth.signOut();
+        appState.isAuthenticated = false;
+        if (lockScreen) lockScreen.classList.remove('hidden');
+        if (appScreen) appScreen.classList.add('hidden');
     });
 }
 
