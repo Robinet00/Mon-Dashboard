@@ -7,8 +7,10 @@
     <link rel="stylesheet" href="css/style.css">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
     
-    <!-- SDK Supabase & JavaScript (dossier js/) -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+    <!-- SDK Supabase (chargé en priorité) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <!-- Votre script de l'application -->
     <script src="js/app.js" defer></script>
 </head>
 <body data-theme="light">
@@ -31,7 +33,6 @@
     <!-- APPLICATION PRINCIPALE -->
     <div id="app-screen" class="hidden">
         
-        <!-- HEADER MOBILE -->
         <header class="mobile-header">
             <button id="hamburger-btn" class="icon-btn">☰</button>
             <h2 id="mobile-title">Accueil</h2>
@@ -46,7 +47,7 @@
             </div>
             
             <ul class="nav-links" id="main-nav">
-                <!-- Généré dynamiquement par JS -->
+                <!-- Généré dynamiquement -->
             </ul>
 
             <div class="sidebar-footer">
@@ -66,7 +67,6 @@
                 </div>
             </div>
             
-            <!-- Zone d'affichage des données -->
             <div id="content-area"></div>
         </main>
     </div>
