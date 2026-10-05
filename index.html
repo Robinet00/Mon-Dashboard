@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mon Espace Personnel</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
+</head>
+<body data-theme="light">
+
+    <!-- ÉCRAN DE VERROUILLAGE -->
+    <div id="lock-screen">
+        <div class="lock-container">
+            <div class="lock-icon">🔒</div>
+            <h1>Espace Privé</h1>
+            <p>Veuillez vous connecter</p>
+            <form id="login-form">
+                <input type="email" id="email-input" autocomplete="username" placeholder="Adresse e-mail..." required autofocus style="margin-bottom: 0.8rem;">
+                <input type="password" id="password-input" autocomplete="current-password" placeholder="Mot de passe..." required>
+                <button type="submit" style="margin-top: 1rem;" class="btn-primary">Se connecter</button>
+            </form>
+            <p id="login-error" role="alert" class="error-text hidden">Identifiants incorrects</p>
+        </div>
+    </div>
+
+    <!-- APPLICATION PRINCIPALE -->
+    <div id="app-screen" class="hidden">
+        
+        <header class="mobile-header">
+            <button id="hamburger-btn" class="icon-btn">☰</button>
+            <h2 id="mobile-title">Accueil</h2>
+            <button class="icon-btn" onclick="document.getElementById('sidebar').classList.add('open'); document.getElementById('sidebar-overlay').classList.add('active'); document.getElementById('global-search').focus()">🔍</button>
+        </header>
+
+        <!-- MENU LATÉRAL -->
+        <div id="sidebar-overlay"></div>
+        <nav id="sidebar">
+            <div class="sidebar-header">
+                <h2>⚡ Dashboard</h2>
+                <button id="close-sidebar-btn" class="icon-btn hide-desktop">✕</button>
+            </div>
+            
+            <div class="sidebar-search">
+                <input type="text" id="global-search" placeholder="🔍 Rechercher partout..." onkeyup="handleGlobalSearch(this.value)">
+            </div>
+            
+            <ul class="nav-links" id="main-nav">
+                <!-- Généré dynamiquement -->
+            </ul>
+
+            <div class="sidebar-footer">
+                <ul class="nav-links">
+                    <li><a href="#settings" class="nav-item">⚙️ Paramètres</a></li>
+                    <li><a href="#" id="lock-btn" class="nav-item lock-btn">🔒 Déconnexion</a></li>
+                </ul>
+            </div>
+        </nav>
+
+        <!-- CONTENU PRINCIPAL -->
+        <main id="main-content">
+            <div class="toolbar" id="top-toolbar">
+                <h1 id="page-title">Accueil</h1>
+                <div class="toolbar-actions" id="toolbar-actions">
+                    <!-- Boutons ajoutés dynamiquement -->
+                </div>
+            </div>
+            
+            <div id="content-area"></div>
+        </main>
+    </div>
+
+    <!-- MODALE GÉNÉRIQUE -->
+    <div id="modal-overlay" class="hidden">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="modal-title">Titre</h3>
+                <button id="close-modal-btn" class="icon-btn">✕</button>
+            </div>
+            <div class="modal-body">
+                <form id="dynamic-form">
+                    <!-- Champs générés dynamiquement -->
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="modal-cancel-btn" class="btn-secondary">Annuler</button>
+                <button type="submit" form="dynamic-form" id="modal-submit-btn" class="btn-primary">Enregistrer</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast-container"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
